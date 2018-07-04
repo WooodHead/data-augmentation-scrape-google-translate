@@ -20,6 +20,7 @@ const processImage = img => {
       const browser = await puppeteer.launch({ headless: true });
       await Promise.all(
         img.sentences.map(async x => {
+          await setTimeout(() => {}, Math.random() * 2000 + 0.5);
           const page = await browser.newPage();
           const text = x.raw;
           console.log(text);
@@ -30,6 +31,7 @@ const processImage = img => {
           );
 
           await page.goto("about:blank"); // has to be there for some reason
+          await setTimeout(() => {}, Math.random() * 2000 + 0.5);
 
           await page.goto(urlBack + textTo);
 
@@ -42,7 +44,7 @@ const processImage = img => {
         })
       );
       await browser.close();
-      setTimeout(() => resolve(results), 10000);
+      setTimeout(() => resolve(results), Math.random() * 5000 + 3);
     } catch (error) {
       reject(error);
     }
