@@ -8,7 +8,7 @@ const { chain } = require("stream-chain");
 const urlTo = "https://translate.google.com/#en/de/";
 const urlBack = "https://translate.google.com/#de/en/";
 
-const path = "/Users/filter/Downloads/caption_datasets/dataset_coco_head.json";
+const path = "/Users/filter/Downloads/caption_datasets/dataset_coco.json";
 const resultDir = "results/";
 
 let browser = null;
@@ -17,12 +17,12 @@ const processImage = img => {
   return new Promise(async (resolve, reject) => {
     try {
       const results = [];
+      const browser = await puppeteer.launch({ headless: true });
       await Promise.all(
         img.sentences.map(async x => {
           const page = await browser.newPage();
           const text = x.raw;
           console.log(text);
-
           await page.goto(urlTo + text);
 
           const textTo = await page.evaluate(() =>
@@ -37,12 +37,12 @@ const processImage = img => {
             document.querySelector("#result_box").textContent.trim()
           );
 
-          await page.close();
           console.log(textBack);
           results.push(textBack);
         })
       );
-      resolve(results);
+      await browser.close();
+      setTimeout(() => resolve(results), 10000);
     } catch (error) {
       reject(error);
     }
@@ -92,9 +92,5 @@ pipeline.on("data", data => {
 });
 
 pipeline.on("end", () => {
-  (async () => (browser = await puppeteer.launch({ headless: true })))().then(
-    () => {
-      runner(() => processAll(all_images)).then(() => browser.close());
-    }
-  );
+  runner(() => processAll(all_images));
 });
