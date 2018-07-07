@@ -11,40 +11,48 @@ const urlBack = "https://translate.google.com/#de/en/";
 const path = "/Users/filter/Downloads/caption_datasets/dataset_coco.json";
 const resultDir = "results/";
 
+const maxTries = 10;
+
 let browser = null;
 
 const processImage = img => {
   return new Promise(async (resolve, reject) => {
     try {
       const results = [];
-      const browser = await puppeteer.launch({ headless: true });
+
       await Promise.all(
         img.sentences.map(async x => {
-          await setTimeout(() => {}, Math.random() * 2000 + 0.5);
-          const page = await browser.newPage();
-          const text = x.raw;
-          console.log(text);
-          await page.goto(urlTo + text);
+          let numTry = 0;
+          while (numTry < maxTries) {
+            const page = await browser.newPage();
+            const text = x.raw;
+            await page.goto(urlTo + text);
 
-          const textTo = await page.evaluate(() =>
-            document.querySelector("#result_box").textContent.trim()
-          );
+            const textTo = await page.evaluate(() =>
+              document.querySelector("#result_box").textContent.trim()
+            );
 
-          await page.goto("about:blank"); // has to be there for some reason
-          await setTimeout(() => {}, Math.random() * 2000 + 0.5);
+            await page.goto("about:blank"); // has to be there for some reason
 
-          await page.goto(urlBack + textTo);
+            await page.goto(urlBack + textTo);
 
-          const textBack = await page.evaluate(() =>
-            document.querySelector("#result_box").textContent.trim()
-          );
-
-          console.log(textBack);
-          results.push(textBack);
+            const textBack = await page.evaluate(() =>
+              document.querySelector("#result_box").textContent.trim()
+            );
+            if (textBack != "") {
+              console.log("GOT", textBack);
+              results.push(textBack);
+              break;
+            } else {
+              numTry++;
+            }
+            page.close();
+          }
         })
       );
-      await browser.close();
-      setTimeout(() => resolve(results), Math.random() * 5000 + 3);
+      // await browser.close();
+      resolve(results);
+      // setTimeout(() => resolve(results), Math.random() * 5000 + 3);
     } catch (error) {
       reject(error);
     }
@@ -80,6 +88,14 @@ const runner = genFun => {
   return run();
 };
 
+let startWith = 0;
+fs.readdirSync(resultDir).forEach(file => {
+  const x = parseInt(file.replace(".txt", ""));
+  if (!isNaN(x)) startWith = Math.max(startWith, x);
+});
+
+console.log("starting with index: ", startWith);
+
 // load data
 const pipeline = chain([
   fs.createReadStream(path),
@@ -87,12 +103,16 @@ const pipeline = chain([
   streamArray()
 ]);
 
-const all_images = [];
+const allImages = [];
 
 pipeline.on("data", data => {
-  all_images.push({ imgid: data.value.imgid, sentences: data.value.sentences });
+  allImages.push({ imgid: data.value.imgid, sentences: data.value.sentences });
 });
 
-pipeline.on("end", () => {
-  runner(() => processAll(all_images));
+pipeline.on("end", async () => {
+  browser = await puppeteer.launch({
+    headless: true,
+    args: ["--proxy-server=socks5://127.0.0.1:9150"]
+  });
+  runner(() => processAll(allImages.slice(startWith)));
 });
